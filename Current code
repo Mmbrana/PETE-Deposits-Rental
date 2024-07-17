@@ -1,0 +1,309 @@
+function checkCellsAndProceedRental() {
+  var sheetr = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var range1 = sheetr.getRange('D5:D8');
+  var range2 = sheetr.getRange('B15:F15');
+  var range3 = sheetr.getRange('D10');
+  var range4 = sheetr.getRange('BW15:BW44');
+  var values1 = range1.getValues();
+  var values2 = range2.getValues();
+  var values3 = range3.getValues();
+  var values4 = range4.getValues();
+  var allFilled = true;
+
+  allFilled = checkRangesRental(values1, values2, values3, values4);
+
+  if (allFilled) {
+    proceedWithRentalEmail();
+  } else {
+    var ui = SpreadsheetApp.getUi();
+    ui.alert('Please fill all cells D5:D10 and B15:H15.');
+  }
+}
+
+// Function to check if all required cells are filled for Rental
+function checkRangesRental(values1, values2, values3, values4) {
+  // Check if all cells in the range D5:D8 are filled
+  for (var i = 0; i < values1.length; i++) {
+    if (values1[i][0] === '' || values1[i][0] === null) {
+      return false;
+    }
+  }
+
+  // Check if all cells in the range B15:F15 are filled
+  for (var j = 0; j < values2[0].length; j++) {
+    if (values2[0][j] === '' || values2[0][j] === null) {
+      return false;
+    }
+  }
+
+  // Check if the cell D10 is filled
+  if (values3[0][0] === '' || values3[0][0] === null) {
+    return false;
+  }
+
+  // Check if all cells in the range BW15:BW44 are filled
+  for (var k = 0; k < values4.length; k++) {
+    if (values4[k][0] === '' || values4[k][0] === null) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function proceedWithRentalEmail() {
+  var ssr = SpreadsheetApp.getActiveSpreadsheet();
+  var emailSheet = ssr.getSheetByName('Email Data Rental'); // Sheet with email, subject, message, and sender name
+
+  var emailDataRange = emailSheet.getDataRange();
+  var emailData = emailDataRange.getValues();
+
+  var emailCol = 3;
+  var subjectCol = 10;
+
+  for (var i = 1; i < emailData.length; i++) {
+    var emailAddress = emailData[i][emailCol - 1];
+    var subject = emailData[i][subjectCol - 1];
+
+    var confirmation = Browser.msgBox(
+      'Send Email for Rental',
+      'Do you want to send the following email?\n\n' + 'To: ' + emailAddress + '\nSubject: ' + subject + '\n\n' + '\n\n[ Press OK to send or Cancel to stop. ]',
+      Browser.Buttons.OK_CANCEL
+    );
+
+    if (confirmation === 'ok') {
+      copyValuesAndFormatRental(); // COPIES DATA TO END OF SHEETS FILE
+      pasteUniqueReferenceNumberInD12Rental(); // LOGGER
+      copyValueToCellsRental(); // COPY AND PASTES CONTROL NUMBER TO END OF SHEETS FILE
+      copyValuesToAutoLogRental();
+      sendEmailToRental(); // EMAILS AND DELETES CURRENT DATA
+      copyAndPasteTableRental();
+      newEntryRental();
+      SpreadsheetApp.getActiveSpreadsheet().toast('Email sent successfully!', 'Email Sent and logged to SPEF');       
+    } else {
+      var ui = SpreadsheetApp.getUi();
+      ui.alert('Email sending canceled. The email was not sent.');
+      break; // Exiting the loop if email sending is canceled
+    }
+  }
+}
+
+// Functions for Rental (Rental-specific implementations)
+function copyValuesAndFormatRental() {
+  var activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var sourceRange = activeSheet.getRange('B88:AS94');
+  var targetRange = activeSheet.getRange('B100:AS106');
+  var sourceValues = sourceRange.getValues();
+  targetRange.setValues(sourceValues);
+}
+
+function pasteUniqueReferenceNumberInD12Rental() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var uniqueReferenceNumber;
+  
+  do {
+    uniqueReferenceNumber = generateUniqueReferenceNumberRental();
+  } while (!isUniqueRental(uniqueReferenceNumber));
+  
+  sheet.getRange('D12').setValue(uniqueReferenceNumber);
+  
+  var spreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1zwPQIh1PnyDR9sBYU0tGrEanqLeXRq1XqokzGme0Ck4/edit#gid=1413780723");
+  var uniqueSheet = spreadsheet.getSheetByName("UniqueRefNumber");
+  uniqueSheet.getRange('A' + (uniqueSheet.getLastRow() + 1)).setValue(uniqueReferenceNumber);
+}
+
+function copyValueToCellsRental() {
+  var ssr = SpreadsheetApp.getActiveSpreadsheet();
+  var sourceValue = ssr.getActiveSheet().getRange('D12').getValue();
+
+  if (sourceValue !== "" && sourceValue !== null) {
+    var targetRange1 = ssr.getActiveSheet().getRange('L106');
+    targetRange1.setValue(sourceValue);
+  }
+}
+
+function copyValuesToAutoLogRental() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var rangeToCopy = sheet.getRange('B86:O86');
+  var valuesToCopy = rangeToCopy.getValues();
+
+  var spreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1zwPQIh1PnyDR9sBYU0tGrEanqLeXRq1XqokzGme0Ck4/edit#gid=620231122");
+  var uniqueSheet = spreadsheet.getSheetByName("Auto-log");
+
+  // Get the last row in the "Auto-log" sheet
+  var lastRow = uniqueSheet.getLastRow();
+
+  // Paste values into the next available row
+  uniqueSheet.getRange('A' + (lastRow + 1) + ':N' + (lastRow + 1)).setValues(valuesToCopy);
+}
+
+function sendEmailToRental() {
+  var ssr = SpreadsheetApp.getActiveSpreadsheet();
+  var emailSheet = ssr.getSheetByName('Email Data Rental'); // Sheet with email, subject, message, and sender name
+  var tableSheet = ssr.getSheetByName('Table Data Rental'); // Sheet with table data
+
+  var emailDataRange = emailSheet.getDataRange();
+  var emailData = emailDataRange.getValues();
+
+  var emailCol = 3;
+  var subjectCol = 10;
+  var messageCol = 11;
+  var ccCol = 4; // Assuming CC email addresses are in column D
+  var senderNameCol = 1; // Column R for sender's name
+  var additionalVarCol = 1; // Assuming additional dynamic variable is in column T
+
+  var logSpreadsheetId = '15n0RtdcpNPv7IuuuejeoZlv2ZcZgzG0Gw_kuSxll--E'; // Replace with the ID of the "SentEmailLog" spreadsheet
+  var logSheetName = 'Rental Log'; // Name of the sheet to log details
+
+  var numRowsInTable = 31; // Number of rows in your table
+  var startRowTable = 1; // Assuming table data starts from row 2 in the TableData sheet
+
+  for (var i = 1; i < emailData.length; i++) {
+    var emailAddress = emailData[i][emailCol - 1];
+    var subject = emailData[i][subjectCol - 1];
+    var messageWithLineBreaks = emailData[i][messageCol - 1].replace(/\n/g, '<br/>');
+
+    var ccAddress = emailData[i][ccCol - 1];
+    var ccArray = ccAddress.split(',');
+    var ccEmails = [];
+    ccArray.forEach(function (cc) {
+      ccEmails.push(cc.trim());
+    });
+
+    var senderName = emailData[i][senderNameCol - 1];
+
+    var dynamicVar1 = emailData[i][4]; // Column 5
+    var dynamicVar2 = emailData[i][6]; // Column 7
+    var dynamicVar3 = emailData[i][7]; // Column 8
+    var amount = emailData[i][1];
+    var gDriveLink = emailData[i][12];
+    var amdTeam = emailData[i][16];
+    var additionalDynamicVar = emailData[i][additionalVarCol - 1] + ' ' + emailData[i][11]; // Additional dynamic variable - Column T
+
+    // Adding dynamic variables to the message with line breaks
+    messageWithLineBreaks += `<b><br/>Buyer's Name/SL Code: </b>${dynamicVar1}<b><br/>Project: </b>${dynamicVar2}<b><br/>Unit: </b>${dynamicVar3}`;
+
+    var messageWithTableAndMessage = composeMessageWithTableAndMessageRental(tableSheet, startRowTable, numRowsInTable, messageWithLineBreaks, additionalDynamicVar);
+
+    // Compose email body with the message containing line breaks, table with bold header, and additional message
+    var emailBody = messageWithTableAndMessage;
+
+    // Log the email details with the HTML content
+    Logger.log('Email to: ' + emailAddress);
+    Logger.log('Subject: ' + subject);
+
+    // Send the email without confirmation
+    MailApp.sendEmail({
+      to: emailAddress,
+      subject: subject,
+      htmlBody: emailBody,
+      cc: ccEmails.join(','),
+      name: senderName
+    });
+
+    var logSheet = SpreadsheetApp.openById(logSpreadsheetId).getSheetByName(logSheetName);
+    // Log the email details
+    var additionalData = emailData[i][0]; // Assuming additional data is in column A
+    var logData = [new Date(), emailAddress, subject, additionalData, amount, gDriveLink, amdTeam];
+    logSheet.appendRow(logData);
+  }
+}
+
+function newEntryRental() {
+  var spreadsheet = SpreadsheetApp.getActive();
+  spreadsheet.getRange('D6:F8').clearContent();
+  spreadsheet.getRange('D11:F11').clearContent();
+  spreadsheet.getRange('B15:F44').clearContent();
+  spreadsheet.getRange('H15:AA44').clearContent();
+  spreadsheet.getRange('B46:D46').clearContent();
+  spreadsheet.getRange('B48:D48').clearContent();
+  spreadsheet.getRange('D12').clearContent();
+  spreadsheet.getRange('D11').clearContent();
+  grantAccess2();
+  SpreadsheetApp.getActiveSpreadsheet().toast('Data cleared and new entry ready.');
+}
+
+// Function to generate unique reference number for Rental
+function generateUniqueReferenceNumberRental() {
+  return 'RE-' + Math.floor(Math.random() * 1000000); // Example unique reference number format
+}
+
+// Function to check if the unique reference number is unique for Rental
+function isUniqueRental(uniqueReferenceNumber) {
+  var spreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1zwPQIh1PnyDR9sBYU0tGrEanqLeXRq1XqokzGme0Ck4/edit#gid=1413780723");
+  var uniqueSheet = spreadsheet.getSheetByName("UniqueRefNumber");
+  var range = uniqueSheet.getRange('A:A').getValues();
+  for (var i = 0; i < range.length; i++) {
+    if (range[i][0] === uniqueReferenceNumber) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function composeMessageWithTableAndMessageRental(tableSheet, startRowTable, numRowsInTable, additionalMessage, additionalDynamicVar) {
+  var tableDataRange = tableSheet.getRange(startRowTable, 1, numRowsInTable, 9); // Assuming 9 columns
+  var tableData = tableDataRange.getDisplayValues(); // Fetch displayed values instead of formulas
+
+  var emailBody = '';
+
+  // Adding additional message before the table
+  emailBody += '<p>' + additionalMessage + '</p><br/>';
+
+  emailBody += '<table border="1" style="border-collapse: collapse;">';
+  var headerRow = tableData[0]; // Assuming the first row is the header
+  emailBody += '<tr>';
+  for (var h = 0; h < headerRow.length; h++) {
+    emailBody += '<th style="padding: 10px;">' + headerRow[h] + '</th>'; // Apply padding to header cells
+  }
+  emailBody += '</tr>';
+  
+  for (var j = 1; j < tableData.length; j++) {
+    var rowHasValues = tableData[j].some(function(cellValue) {
+      return cellValue !== "";
+    });
+    if (rowHasValues) {
+      emailBody += '<tr>';
+      for (var k = 0; k < tableData[j].length; k++) {
+        emailBody += '<td style="padding: 10px;">' + tableData[j][k] + '</td>'; // Apply padding to data cells
+      }
+      emailBody += '</tr>';
+    }
+  }
+  emailBody += '</table>';
+
+  // Adding additional dynamic variable after the table without any enclosing tags
+  emailBody += `<p>Please do advise us if there will be any discrepancy upon endorsement for clearance. May we kindly request for the immediate processing of their Official Receipts for their compliance in accordance with their businesses.<br/><br/>Hoping for your compliance on the agreed deadline for OR transmittal.<br/><br/>Thank you!<br/>Best regards, <br/>${additionalDynamicVar}</p>`;
+
+  return emailBody;
+}
+
+function copyAndPasteTableRental() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sourceSheet = spreadsheet.getSheetByName("SPEF1 Rental");
+
+  // Get the data range from the source sheet
+  var dataRange = sourceSheet.getRange("B2:R31");
+  var filteredData = dataRange.getValues().filter(function(row) {
+    return row[0] !== '';
+  });
+
+  // Get the values from the range AC2:AX31
+  var additionalDataRange = sourceSheet.getRange("AC2:AY31");
+  var additionalData = additionalDataRange.getValues();
+
+  // Open the target spreadsheet by URL
+  var targetSpreadsheet = SpreadsheetApp.openByUrl("https://docs.google.com/spreadsheets/d/1iKT5kuTxRhz15bfJ7qt3Ih7iUU-izHsKfIX12SI60WY/edit#gid=0");
+  var targetSheet = targetSpreadsheet.getSheetByName("Endorsed Payments - DEP");
+
+  // Find the last used row in column D
+  var lastRow = targetSheet.getRange("D:D").getValues().flat().filter(String).length + 1;
+
+  // Get the range to paste the filtered data starting from the next available row in column D
+  var targetRange = targetSheet.getRange(lastRow, 3, filteredData.length, filteredData[0].length);
+  targetRange.setValues(filteredData);
+
+  // Get the range to paste the additional data starting from the next available row in column D
+  var additionalTargetRange = targetSheet.getRange(lastRow, 30, additionalData.length, additionalData[0].length);
+  additionalTargetRange.setValues(additionalData);
+}
